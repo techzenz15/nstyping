@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Apni Typing – Complete Exam Portal</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --bg-dark:#0f172a; --bg-light:#f8fafc;
+  --card-dark:#020617; --card-light:#ffffff;
+  --text-dark:#e5e7eb; --text-light:#020617;
+  --primary:#2563eb; --success:#16a34a; --danger:#dc2626;
+  --accent:#f97316;
+}
+body{margin:0;font-family:Segoe UI,Arial;transition:.3s}
+body.dark{background:var(--bg-dark);color:var(--text-dark)}
+body.light{background:var(--bg-light);color:var(--text-light)}
+.center{min-height:100vh;display:flex;align-items:center;justify-content:center}
+.card{width:95%;max-width:1200px;border-radius:20px;padding:25px;box-shadow:0 15px 40px rgba(0,0,0,.5);border:2px solid var(--accent)}
+body.dark .card{background:var(--card-dark)}
+body.light .card{background:var(--card-light)}
+.hidden{display:none}
+input,textarea,select{width:100%;padding:14px;border-radius:10px;margin:10px 0;font-size:16px;border:1px solid #ccc}
+button{padding:12px 18px;border:none;border-radius:12px;cursor:pointer;font-weight:bold;transition:.3s}
+.primary{background:var(--primary);color:#fff}
+.primary:hover{background:#1d4ed8}
+.toggle{background:var(--accent);color:#fff;border-radius:15px;padding:8px 14px;cursor:pointer}
+.toggle:hover{background:#f59e0b}
+.exam-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
+.exam{padding:25px;border-radius:18px;color:#fff;font-weight:bold;cursor:pointer;transition:.3s;text-align:center;font-size:18px}
+.exam:hover{transform:scale(1.05);box-shadow:0 10px 20px rgba(0,0,0,.4)}
+.exam.ssc{background:#1e3a8a}
+.exam.police{background:#065f46}
+.exam.court{background:#7c2d12}
+.exam.cpct{background:#581c87}
+.top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px}
+.top-stats{display:flex;justify-content:space-around;margin-bottom:15px;font-size:16px}
+.text-box{padding:18px;border-radius:14px;min-height:220px;line-height:2;margin:15px 0;overflow-y:auto;font-size:17px}
+body.dark .text-box{background:#020617}
+body.light .text-box{background:#f1f5f9}
+.text-box span.correct{color:var(--success)}
+.text-box span.wrong{color:var(--danger);text-decoration:underline}
+#submitExam{width:100%;margin-top:12px;background:var(--accent);color:#fff}
+#submitExam:hover{background:#fb923c}
+.result-note{font-weight:bold;margin-top:12px;font-size:18px;color:var(--accent)}
+#examLogo{max-width:120px;display:block;margin:auto;margin-bottom:15px}
+</style>
+</head>
+<body class="dark">
+
+<!-- HOME PAGE WITH NAME INPUT -->
+<div class="center" id="homePage">
+  <div class="card">
+    <h1>Apni Typing</h1>
+    <p>Enter your Name to Start</p>
+    <input id="name" placeholder="Candidate Name">
+    <button class="primary" onclick="startHome()">Start</button>
+  </div>
+</div>
+
+<!-- EXAM SELECTION -->
+<div class="center hidden" id="examPage">
+  <div class="card">
+    <div class="top">
+      <h2>Choose Exam</h2>
+      <div>
+        <label for="homeTypingMode">Typing Mode:</label>
+        <select id="homeTypingMode">
+          <option value="english">English</option>
+          <option value="hindi">Hindi</option>
+        </select>
+        <button class="toggle" onclick="toggleMode()">Dark / Light</button>
+      </div>
+    </div>
+    <div class="exam-grid">
+      <div class="exam ssc" onclick="openExam('ssc')">SSC Typing</div>
+      <div class="exam police" onclick="openExam('police')">Police Typing</div>
+      <div class="exam court" onclick="openExam('court')">Court Typing</div>
+      <div class="exam cpct" onclick="openExam('cpct')">CPCT Typing</div>
+    </div>
+  </div>
+</div>
+
+<!-- TEST PAGE -->
+<div class="center hidden" id="testPage">
+  <div class="card">
+    <img id="examLogo" src="" alt="Logo">
+    <h2 id="examTitle"></h2>
+    <div class="top-stats">
+      <span id="timer">⏱️ 05:00</span>
+      <span id="wpm">⚡ WPM: 0</span>
+      <span id="accuracy">🎯 Accuracy: 100%</span>
+    </div>
+    <div class="text-box" id="displayText"></div>
+    <textarea id="input" disabled placeholder="Start typing..."></textarea>
+    <button id="submitExam">Submit Exam</button>
+  </div>
+</div>
+
+<!-- RESULT PAGE -->
+<div class="center hidden" id="resultPage">
+  <div class="card">
+    <img id="resultLogo" src="" style="max-width:120px;display:block;margin:auto;margin-bottom:15px">
+    <h2>Typing Test Result</h2>
+    <p><b>Name:</b> <span id="rName"></span></p>
+    <p><b>Exam:</b> <span id="rExam"></span></p>
+    <p><b>WPM:</b> <span id="rWpm"></span></p>
+    <p><b>Accuracy:</b> <span id="rAcc"></span>%</p>
+    <p><b>Mistakes:</b> <span id="rMist"></span></p>
+    <div class="result-note" id="qualNote"></div>
+    <button class="primary" onclick="downloadPDF()">Download PDF</button>
+    <button onclick="backHome()">Back to Home</button>
+  </div>
+</div>
+
+<script>
+let candidate='',exam='',timer,timeLeft=300,errors=0;
+const input=document.getElementById('input');
+const wpm=document.getElementById('wpm');
+const accuracy=document.getElementById('accuracy');
+const displayText=document.getElementById('displayText');
+
+const englishPassages={ssc:['Sample SSC English Passage...'],police:['Police English Passage...'],court:['Court English...'],cpct:['CPCT English...']};
+const hindiPassages={ssc:['कर्म ही पूजा है...','भारत एक लोकतांत्रिक देश है...'],police:['संविधान भारत का सर्वोच्च कानून है...'],court:['कार्यालय में समय प्रबंधन आवश्यक है...'],cpct:['कंप्यूटर दक्षता परीक्षा...']};
+const examLogos={ssc:'assets/ssc.png',police:'assets/police.png',court:'assets/court.png',cpct:'assets/cpct.png'};
+
+function startHome(){
+  const n=document.getElementById('name').value;
+  if(!n){alert('Enter your name'); return;}
+  candidate=n;
+  document.getElementById('homePage').classList.add('hidden');
+  document.getElementById('examPage').classList.remove('hidden');
+}
+
+function openExam(e){
+  exam=e;
+  document.getElementById('examPage').classList.add('hidden');
+  document.getElementById('testPage').classList.remove('hidden');
+  document.getElementById('examTitle').innerText=e.toUpperCase()+' Typing Test';
+  document.getElementById('examLogo').src=examLogos[e];
+  loadText();
+  const mode=document.getElementById('homeTypingMode').value;
+  if(e==='police') timeLeft=(mode==='english'?15*60:15*60);
+  else timeLeft=5*60;
+  startTest();
+}
+
+function loadText(){
+  const mode=document.getElementById('homeTypingMode').value;
+  const text=(mode==='english'?englishPassages[exam]:hindiPassages[exam]).join(' ').repeat(6);
+  displayText.innerHTML=text.split('').map(c=>`<span>${c}</span>`).join('');
+}
+
+function startTest(){
+  input.disabled=false;
+  input.value='';
+  input.focus();
+  errors=0;
+  clearInterval(timer);
+  timer=setInterval(()=>{
+    timeLeft--;
+    const min=Math.floor(timeLeft/60).toString().padStart(2,'0');
+    const sec=(timeLeft%60).toString().padStart(2,'0');
+    document.getElementById('timer').innerText='⏱️ '+min+':'+sec;
+    if(timeLeft<=0) finishExam();
+  },1000);
+}
+
+submitExam.onclick=finishExam;
+input.addEventListener('input',checkTyping);
+
+function checkTyping(){
+  const val=input.value;
+  const spans=displayText.querySelectorAll('span');
+  errors=0;
+  spans.forEach((s,i)=>{if(val[i]==null)s.className='';else if(val[i]===s.innerText)s.className='correct';else{s.className='wrong';errors++;}});
+  const words=val.trim().split(/\s+/).filter(w=>w).length;
+  const minutes=(300-timeLeft)/60;
+  wpm.innerText='⚡ WPM: '+(minutes>0?Math.round(words/minutes):0);
+  accuracy.innerText='🎯 Accuracy: '+Math.max(0,Math.round(((val.length-errors)/Math.max(1,val.length))*100))+'%';
+}
+
+function finishExam(){
+  clearInterval(timer);
+  document.getElementById('testPage').classList.add('hidden');
+  document.getElementById('resultPage').classList.remove('hidden');
+  document.getElementById('rName').innerText=candidate;
+  document.getElementById('rExam').innerText=exam;
+  document.getElementById('rWpm').innerText=wpm.innerText.split(': ')[1];
+  document.getElementById('rAcc').innerText=accuracy.innerText.split(': ')[1];
+  document.getElementById('rMist').innerText=errors;
+  const mode=document.getElementById('homeTypingMode').value;
+  let qualify=false;
+  const speed=parseInt(document.getElementById('rWpm').innerText);
+  if(exam==='police'){
+    if(mode==='english') qualify=(speed>=30);
+    else qualify=(speed>=25);
+  } else {qualify=true;}
+  document.getElementById('qualNote').innerText=qualify?'Qualified ✅':'Not Qualified ❌';
+}
+
+function backHome(){
+  document.getElementById('resultPage').classList.add('hidden');
+  document.getElementById('examPage').classList.remove('hidden');
+  input.value='';
+}
+
+function downloadPDF(){
+  const { jsPDF }=window.jspdf;
+  const pdf=new jsPDF();
+  pdf.text('Apni Typing Test Result',20,20);
+  pdf.text('Name: '+candidate,20,40);
+  pdf.text('Exam: '+exam,20,50);
+  pdf.text('WPM: '+document.getElementById('rWpm').innerText,20,60);
+  pdf.text('Accuracy: '+document.getElementById('rAcc').innerText,20,70);
+  pdf.text('Mistakes: '+errors,20,80);
+  pdf.text(document.getElementById('qualNote').innerText,20,90);
+  pdf.save('Typing_Result.pdf');
+}
+
+function toggleMode(){document.body.classList.toggle('dark');document.body.classList.toggle('light');}
+</script>
+</body>
+</html>
